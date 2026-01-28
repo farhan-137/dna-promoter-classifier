@@ -1,76 +1,47 @@
-"""
-Support Vector Machine with SMO (Sequential Minimal Optimization)
-Built to work with string kernels for sequence classification.
 
-SMO is basically: instead of solving the massive QP problem all at once,
-we pick 2 alphas at a time and optimize just those. Repeat until converged.
-
-@author: parzival
-"""
 
 import random
 import math
 
 
 class StringKernelSVM:
-    """
-    SVM classifier that works with any kernel function.
-    
-    Uses SMO algorithm for training - no scipy or cvxopt needed.
-    The key insight: we precompute the gram matrix so kernel lookups are O(1).
-    """
+
     
     def __init__(self, kernel_func=None, C=1.0, tol=1e-3, max_iter=100, **kernel_params):
-        """
-        Args:
-            kernel_func: function(s1, s2, **params) -> similarity score
-            C: regularization parameter (higher = less regularization)
-            tol: numerical tolerance for convergence
-            max_iter: max passes over the training data
-            kernel_params: passed to kernel function (e.g., k=3 for spectrum)
-        """
+     
         self.kernel_func = kernel_func
         self.kernel_params = kernel_params
         self.C = C
         self.tol = tol
         self.max_iter = max_iter
         
-        # these get set during training
+     
         self.alphas = None
         self.b = 0.0
         self.X_train = None
         self.y_train = None
         self.gram_matrix = None
         
-        # support vectors (indices where alpha > 0)
         self.support_indices = []
     
     def _compute_gram_matrix(self, X):
-        """
-        Precompute all pairwise kernel values.
-        
-        For n training samples, this is n^2 kernel calculations.
-        But we only do it once, and then SMO can look up values instantly.
-        
-        This is the "optimization" mentioned in the project description.
-        Without this, SMO would recompute K(i,j) every time it's needed.
-        """
+      
         n = len(X)
         K = [[0.0] * n for _ in range(n)]
         
         print(f"Pre-computing gram matrix ({n}x{n} = {n*n} kernel evaluations)...")
         
-        total = n * (n + 1) // 2  # upper triangle + diagonal
+        total = n * (n + 1) // 2 
         computed = 0
         
         for i in range(n):
             for j in range(i, n):
                 val = self.kernel_func(X[i], X[j], **self.kernel_params)
                 K[i][j] = val
-                K[j][i] = val  # symmetric
+                K[j][i] = val  
                 computed += 1
             
-            # progress every 25%
+          
             if (i + 1) % max(1, n // 4) == 0:
                 print(f"  ...{100 * (i+1) // n}% done")
         
@@ -78,15 +49,11 @@ class StringKernelSVM:
         return K
     
     def _kernel(self, i, j):
-        """Quick lookup in precomputed gram matrix."""
+
         return self.gram_matrix[i][j]
     
     def _decision_function(self, idx):
-        """
-        Compute f(x_idx) = sum_j(alpha_j * y_j * K(x_j, x_idx)) + b
-        
-        This is the raw SVM output before sign().
-        """
+     
         result = 0.0
         for j in range(len(self.X_train)):
             if self.alphas[j] > 0:  # only non-zero alphas matter
@@ -98,12 +65,7 @@ class StringKernelSVM:
         return self._decision_function(idx) - self.y_train[idx]
     
     def _take_step(self, i1, i2):
-        """
-        Optimize alphas[i1] and alphas[i2] together.
-        This is the core of SMO - we can solve for 2 alphas analytically.
-        
-        Returns True if alphas were updated significantly.
-        """
+      
         if i1 == i2:
             return False
         
@@ -117,7 +79,6 @@ class StringKernelSVM:
         
         s = y1 * y2
         
-        # compute bounds for alpha2
         if y1 != y2:
             L = max(0, alpha2_old - alpha1_old)
             H = min(self.C, self.C + alpha2_old - alpha1_old)
@@ -127,15 +88,14 @@ class StringKernelSVM:
         
         if L >= H:
             return False
-        
-        # second derivative of the objective (eta)
+       
         k11 = self._kernel(i1, i1)
         k12 = self._kernel(i1, i2)
         k22 = self._kernel(i2, i2)
         eta = 2 * k12 - k11 - k22
         
         if eta >= 0:
-            # rare edge case - skip this pair
+          
             return False
         
         # compute new alpha2
@@ -172,10 +132,7 @@ class StringKernelSVM:
         return True
     
     def _examine_example(self, i2):
-        """
-        Try to find a good i1 to pair with i2 for optimization.
-        Returns True if we made progress.
-        """
+      
         y2 = self.y_train[i2]
         alpha2 = self.alphas[i2]
         E2 = self._compute_error(i2)
@@ -221,13 +178,7 @@ class StringKernelSVM:
         return False
     
     def fit(self, X, y):
-        """
-        Train the SVM on sequences X with labels y.
-        
-        Args:
-            X: list of sequences (strings)
-            y: list of labels (+1 or -1)
-        """
+      
         self.X_train = X
         self.y_train = y
         n = len(X)
@@ -279,11 +230,7 @@ class StringKernelSVM:
         return self
     
     def predict_one(self, x_new):
-        """
-        Predict class for a single new sequence.
-        
-        Returns: +1 or -1
-        """
+       
         # compute kernel with all support vectors
         result = 0.0
         for i in self.support_indices:
